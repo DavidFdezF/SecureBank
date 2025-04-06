@@ -1,0 +1,29 @@
+[2025-04-06 14:53:07] Depósito en cuenta 1003: +23.00
+[2025-04-06 14:53:13] Retiro en cuenta 1001: -20.00
+[2025-04-06 14:53:19] Transferencia desde cuenta 1002: >60.00
+[2025-04-06 14:53:25] Depósito en cuenta 1004: +5000.00
+[2025-04-06 14:53:31] ALERTA: Operación revertida en cuenta 1004 por monto 9000.00
+[2025-04-06 14:53:36] Depósito en cuenta 1004: +5000.00
+[2025-04-06 14:53:45] ALERTA: Operación revertida en cuenta 1004 por monto 9000.00
+[2025-04-06 14:53:54] Retiro en cuenta 1004: -60.00
+[2025-04-06 14:54:02] Depósito en cuenta 1004: +4980.00
+[2025-04-06 14:54:12] ALERTA: Operación revertida en cuenta 1004 por monto 13000.00
+[2025-04-06 14:54:23] Transferencia desde cuenta 1004: >50.00
+[2025-04-06 15:18:24] Depósito en cuenta 1003: +12000.00
+[2025-04-06 15:18:34] Retiro en cuenta 1001: -50.00
+[2025-04-06 15:18:39] ALERTA: Operación revertida en cuenta 1003 por monto 9000.00
+[2025-04-06 15:18:43] Transferencia desde cuenta 1001: >50.00
+[2025-04-06 15:18:56] ALERTA: Operación revertida en cuenta 1004 por monto 13000.00
+[2025-04-06 15:19:42] Depósito en cuenta 1003: +13000.00
+[2025-04-06 16:10:58] Depósito en cuenta 1002: +15000.00
+[2025-04-06 16:11:08] Retiro en cuenta 1004: -100.00
+[2025-04-06 16:11:17] ALERTA: Operación revertida en cuenta 1002 por monto 9000.00
+[2025-04-06 16:11:24] ALERTA: Operación revertida en cuenta 1002 por monto 15000.00
+[2025-04-06 16:11:37] Transferencia desde cuenta 1001: >50.00
+[2025-04-06 16:14:37] Depósito en cuenta 1002: +9050.00
+[2025-04-06 16:14:44] ALERTA: Operación revertida en cuenta 1002 por monto 9000.00
+[2025-04-06 16:14:58] Transferencia desde cuenta 1002: >90.00
+[2025-04-06 16:15:08] Retiro en cuenta 1002: -1001.00
+[2025-04-06 16:15:24] Transferencia desde cuenta 1002: >3.00
+[2025-04-06 16:15:32] ALERTA: Operación revertida en cuenta 1002 por monto 13000.00
+[2025-04-06 16:17:28] Transferencia desde cuenta 1002: >90.00
