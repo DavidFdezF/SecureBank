@@ -27,3 +27,24 @@
 [2025-04-06 16:15:24] Transferencia desde cuenta 1002: >3.00
 [2025-04-06 16:15:32] ALERTA: Operación revertida en cuenta 1002 por monto 13000.00
 [2025-04-06 16:17:28] Transferencia desde cuenta 1002: >90.00
+[2025-04-06 23:25:51] Depósito en cuenta 1003: +10000.00
+[2025-04-06 23:26:05] Retiro en cuenta 1002: -4000.00
+[2025-04-06 23:26:13] ALERTA: Operación revertida en cuenta 1002 por monto 9000.00
+[2025-04-06 23:26:20] Transferencia desde cuenta 1002: >2000.00
+[2025-04-06 23:26:29] ALERTA: Operación revertida en cuenta 1002 por monto 15000.00
+[2025-04-06 23:26:45] ALERTA: Operación revertida en cuenta 1002 por monto 15000.00
+[2025-05-13 13:28:53] OK
+[2025-05-13 13:28:56] OK
+[2025-05-13 13:28:58] OK
+[2025-05-13 13:29:03] OK
+[2025-05-13 13:59:21] OK
+[2025-05-13 13:59:27] OK
+[2025-05-13 14:01:15] ALERTA: Operación revertida en cuenta 1002 por monto 10000.00
+[2025-05-13 14:06:22] OK
+[2025-05-13 14:06:28] ALERTA: Operación revertida en cuenta 1003 por monto 10000.00
+[2025-05-13 14:16:20] OK
+[2025-05-17 13:03:08] OK
+[2025-05-17 13:41:48] OK
+[2025-05-17 13:54:34] OK
+[2025-05-17 13:55:11] OK
+[2025-05-17 13:55:30] ALERTA: Operación revertida en cuenta 1001 por monto 10000.00

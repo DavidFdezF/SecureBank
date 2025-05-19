@@ -2,131 +2,78 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <semaphore.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include "estructuras.h"
+#include <pthread.h>
 
-#define SEM_NOMBRE "/sem_validacion"
+#include "estructuras.h"
+#include "memoria.h"
+#include "configuracion.h"
+#include "ficheros.h"
+
 #define MSGKEY 1234
 #define MSGKEY_RESPUESTA 5678
 
-char archivo_cuentas[100];
+TablaCuentas *tabla = NULL;
 
-// Leemos los parámetros de configuración desde config.txt
-Config leer_configuracion(const char *ruta) {
-    FILE *archivo = fopen(ruta, "r");
-    if (archivo == NULL) {
-        perror("Error al abrir config.txt");
-        exit(1);
-    }
-
-    Config config;
-    char linea[100];
-    while (fgets(linea, sizeof(linea), archivo)) {
-        if (linea[0] == '#' || strlen(linea) < 3) continue;
-            
-        // Extraemos cada parámetro de configuración por clave
-        if (strstr(linea, "LIMITE_RETIRO")) sscanf(linea, "LIMITE_RETIRO=%d", &config.limite_retiro);
-        else if (strstr(linea, "LIMITE_TRANSFERENCIA")) sscanf(linea, "LIMITE_TRANSFERENCIA=%d", &config.limite_transferencia);
-        else if (strstr(linea, "UMBRAL_RETIROS")) sscanf(linea, "UMBRAL_RETIROS=%d", &config.umbral_retiros);
-        else if (strstr(linea, "UMBRAL_TRANSFERENCIAS")) sscanf(linea, "UMBRAL_TRANSFERENCIAS=%d", &config.umbral_transferencias);
-        else if (strstr(linea, "NUM_HILOS")) sscanf(linea, "NUM_HILOS=%d", &config.num_hilos);
-        else if (strstr(linea, "ARCHIVO_CUENTAS")) sscanf(linea, "ARCHIVO_CUENTAS=%s", config.archivo_cuentas);
-        else if (strstr(linea, "ARCHIVO_LOG")) sscanf(linea, "ARCHIVO_LOG=%s", config.archivo_log);
-    }
-
-    fclose(archivo);
-    return config;
-}
-
-// Revertimos una transacción sospechosa
+// Revierte una transacción en memoria compartida
 void revertir_transaccion(int numero_cuenta, float monto, int tipo_operacion) {
-    sem_t *sem = sem_open(SEM_NOMBRE, 0);
-    if (sem == SEM_FAILED) {
-        perror("Monitor: No se pudo abrir el semáforo");
-        return;
-    }
+    for (int i = 0; i < tabla->num_cuentas; i++) {
+        Cuenta *cuenta = &tabla->cuentas[i];
+        if (cuenta->numero_cuenta == numero_cuenta) {
+            pthread_mutex_lock(&cuenta->mutex);
 
-    sem_wait(sem); // Bloqueamos el acceso al archivo de cuentas
-
-    FILE *archivo = fopen(archivo_cuentas, "rb+");
-    if (!archivo) {
-        perror("Monitor: No se pudo abrir el archivo de cuentas");
-        sem_post(sem);
-        return;
-    }
-
-    Cuenta cuenta;
-     // Recorremos todas las cuentas hasta encontrar la cuenta afectada
-    while (fread(&cuenta, sizeof(Cuenta), 1, archivo)) {
-        if (cuenta.numero_cuenta == numero_cuenta) {
-             // Revertimos según el tipo de operación original
             if (tipo_operacion == 1) {
-                cuenta.saldo -= monto;  // Revertir depósito
+                cuenta->saldo -= monto; // Revertir depósito
             } else if (tipo_operacion == 2 || tipo_operacion == 3) {
-                cuenta.saldo += monto;  // Revertir retiro o transferencia
+                cuenta->saldo += monto; // Revertir retiro o transferencia
             }
-            cuenta.num_transacciones--;
 
-            // Reposicionamos el puntero y sobrescribimos la cuenta actualizada
-            fseek(archivo, -sizeof(Cuenta), SEEK_CUR);
-            fwrite(&cuenta, sizeof(Cuenta), 1, archivo);
+            if (cuenta->num_transacciones > 0) {
+                cuenta->num_transacciones--;
+            }
 
-            printf("\nAVISO MONITOR: Operación sospechosa revertida en cuenta %d\n", numero_cuenta);
-            printf("Monto: %.2f | Nuevo saldo: %.2f\n\n", monto, cuenta.saldo);
+            pthread_mutex_unlock(&cuenta->mutex);
+
+            printf("[MONITOR] Reversión en cuenta %d | Nuevo saldo: %.2f\n",
+                   cuenta->numero_cuenta, cuenta->saldo);
             break;
         }
     }
-
-    fclose(archivo);
-    sem_post(sem);
-    sem_close(sem);
 }
 
-int main() {
-    // Cargamos la configuración
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "Uso: %s <shm_id>\n", argv[0]);
+        return 1;
+    }
+
+    int shm_id = atoi(argv[1]);
+    tabla = acceder_a_memoria(shm_id);
+
     Config cfg = leer_configuracion("config.txt");
-    strcpy(archivo_cuentas, cfg.archivo_cuentas);
 
-    // Accedemos a la cola de mensajes principal del banco
     int msgid = msgget(MSGKEY, 0666);
-    if (msgid == -1) {
-        perror("Monitor: No se pudo acceder a la cola de mensajes");
-        return 1;
-    }
-
-    // Accedemos a la cola de respuestas
     int msgid_respuesta = msgget(MSGKEY_RESPUESTA, IPC_CREAT | 0666);
-    if (msgid_respuesta == -1) {
-        perror("Monitor: No se pudo acceder a la cola de respuestas");
+
+    if (msgid == -1 || msgid_respuesta == -1) {
+        perror("Monitor: error al acceder a colas de mensajes");
         return 1;
     }
-
-    sem_t *sem = sem_open(SEM_NOMBRE, 0);
-    if (sem == SEM_FAILED) {
-        perror("Monitor: No se pudo abrir el semáforo");
-        return 1;
-    }
-
-    printf("Monitor activo: escuchando transacciones...\n");
-    printf("Límite de retiro: %d\n", cfg.limite_retiro);
-    printf("Límite de transferencia: %d\n", cfg.limite_transferencia);
 
     struct msgbuf mensaje;
+    struct msgbuf respuesta;
+    printf("[MONITOR] Iniciado y escuchando transacciones sospechosas...\n");
 
-    // Iniciamos ciclo infinito de escucha
     while (1) {
         memset(&mensaje, 0, sizeof(mensaje));
 
-         // Esperamos recibir un mensaje del banco
         if (msgrcv(msgid, &mensaje, sizeof(mensaje.mtext), 0, 0) > 0) {
             float monto = 0.0;
             int cuenta = 0;
             int cuenta_destino = 0;
             int tipo_operacion = 0;
 
-            // Detectamos tipo de operación y extraemos datos
             if (strstr(mensaje.mtext, "Depósito") != NULL) {
                 tipo_operacion = 1;
                 sscanf(mensaje.mtext, "%*[^0123456789]%f%*[^0123456789]%d", &monto, &cuenta);
@@ -135,53 +82,44 @@ int main() {
                 sscanf(mensaje.mtext, "%*[^0123456789]%f%*[^0123456789]%d", &monto, &cuenta);
             } else if (strstr(mensaje.mtext, "Transferencia") != NULL) {
                 tipo_operacion = 3;
-                int r = sscanf(mensaje.mtext, "Transferencia de %f desde cuenta %d a cuenta %d", &monto, &cuenta, &cuenta_destino);
-                if (r != 3) {
-                    printf("Monitor: no se pudo interpretar correctamente la transferencia:\n%s\n", mensaje.mtext);
-                    tipo_operacion = 0;
-                }
+                sscanf(mensaje.mtext, "Transferencia de %f desde cuenta %d a cuenta %d",
+                       &monto, &cuenta, &cuenta_destino);
             }
 
-            // Preparamos estructura de respuesta al banco
-            struct msgbuf respuesta;
             respuesta.mtype = 1;
 
-            // Definimos el umbral de control según tipo de operación
             int umbral = 0;
-            if (tipo_operacion == 2) {
-                umbral = cfg.limite_retiro;
-            } else if (tipo_operacion == 3) {
-                umbral = cfg.limite_transferencia;
-            }
+            if (tipo_operacion == 2) umbral = cfg.limite_retiro;
+            else if (tipo_operacion == 3) umbral = cfg.limite_transferencia;
 
-            // Evaluamos si la operación es sospechosa
             if (tipo_operacion != 0 && monto > umbral) {
                 if (tipo_operacion == 1) {
-                    // Ignoramos depósitos simples
-                    strcpy(respuesta.mtext, "OK");
-                    sem_post(sem);
-                    msgsnd(msgid_respuesta, &respuesta, strlen(respuesta.mtext) + 1, 0);
-                    continue;  // Pasamos a la siguiente operación
-                }                
-                // Revertimos la transacción
-                revertir_transaccion(cuenta, monto, tipo_operacion);
-                if (tipo_operacion == 3) {
-                    revertir_transaccion(cuenta_destino, monto, 1);  // revertir depósito
+                    strcpy(respuesta.mtext, "OK"); // No se revierte depósitos
+                } else {
+                    revertir_transaccion(cuenta, monto, tipo_operacion);
+                    if (tipo_operacion == 3) {
+                        revertir_transaccion(cuenta_destino, monto, 1);
+                    }
+
+                    snprintf(respuesta.mtext, sizeof(respuesta.mtext),
+                             "ALERTA: Operación revertida en cuenta %d por monto %.2f", cuenta, monto);
+
+                    // ✍ Registrar la alerta en el log del usuario
+                    escribir_log_usuario(cuenta, respuesta.mtext);
+                    if (tipo_operacion == 3) {
+                        escribir_log_usuario(cuenta_destino, respuesta.mtext);
+                    }
                 }
-                // Enviamos alerta al banco
-                snprintf(respuesta.mtext, sizeof(respuesta.mtext), "ALERTA: Operación revertida en cuenta %d por monto %.2f", cuenta, monto);
             } else {
-                // Si es válida respondemos OK 
                 strcpy(respuesta.mtext, "OK");
-                sem_post(sem);
             }
-             // Enviamos la respuesta al banco
+
             msgsnd(msgid_respuesta, &respuesta, strlen(respuesta.mtext) + 1, 0);
         } else {
-            usleep(100000);
+            usleep(100000); // Espera corta antes de siguiente intento
         }
     }
 
-    sem_close(sem);
+    desconectar_memoria(tabla);
     return 0;
 }
